@@ -1,0 +1,16 @@
+mappings:
+  properties:
+    job:
+      properties:
+        start_time:
+        end_time:
+        completed:
+    tasks:
+      properties:
+        001:
+          properties:
+            start_time:
+            end_time:
+            completed:
+            errors:
+            log:

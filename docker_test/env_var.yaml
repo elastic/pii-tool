@@ -1,0 +1,8 @@
+---
+elasticsearch:
+  client:
+    hosts: ${ESCLIENT_HOSTS}
+    ca_certs: ${ESCLIENT_CA_CERTS}
+  other_settings:
+    username: ${ESCLIENT_USERNAME}
+    password: ${ESCLIENT_PASSWORD}

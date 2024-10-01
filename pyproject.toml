@@ -1,0 +1,131 @@
+[build-system]
+requires = ['hatchling']
+build-backend = 'hatchling.build'
+
+[project]
+name = 'es-pii-tool'
+authors = [{ name='Elastic', email='info@elastic.co' }]
+dynamic = ['version']
+description = 'Redacting field data from your Elasticsearch indices and Searchable Snapshots'
+license = { text='Apache-2.0' }
+readme = 'README.md'
+requires-python = '>=3.8'
+classifiers = [
+    'Intended Audience :: Developers',
+    'Intended Audience :: System Administrators',
+    'License :: OSI Approved :: Apache Software License',
+    'Operating System :: OS Independent',
+    'Programming Language :: Python',
+    'Programming Language :: Python :: 3.8',
+    'Programming Language :: Python :: 3.9',
+    'Programming Language :: Python :: 3.10',
+    'Programming Language :: Python :: 3.11',
+    'Programming Language :: Python :: 3.12',
+]
+keywords = [
+    'elasticsearch',
+    'redact',
+    'pii',
+    'index'
+]
+dependencies = [
+    'es_client>=8.15.1',
+    'es_wait>=0.9.1',
+]
+
+[project.optional-dependencies]
+test = [
+    'es_testbed==0.8.5',
+    'requests',
+    'pytest>=7.2.1',
+    'pytest-cov',
+    'python-dotenv==1.0.1',
+]
+doc = ['sphinx', 'sphinx_rtd_theme']
+
+[project.scripts]
+pii-tool = 'es_pii_tool.cli:run'
+
+[tool.cxfreeze]
+executables = [
+    {script="run_script.py", target_name="pii-tool"}
+]
+
+[project.urls]
+'Homepage' = 'https://github.com/elastic/es-pii-tool'
+'Bug Tracker' = 'https://github.com/elastic/es-pii-tool/issues'
+
+[tool.hatch.version]
+path = 'src/es_pii_tool/__init__.py'
+
+[tool.hatch.module]
+name = 'es-pii-tool'
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+    'Dockerfile',
+    'dist',
+    'docs',
+    'docker_test',
+    'examples',
+    'html_docs',
+    'tests',
+    'post4docker.py',
+    '*.yaml',
+    '*.yml',
+    '*.sh',
+    '*.ini',
+]
+
+[tool.pytest.ini_options]
+pythonpath = ['.', 'src/es_pii_tool']
+minversion = '7.2'
+addopts = '-ra -q'
+testpaths = [
+    'tests/unit',
+    'tests/integration',
+]
+
+# Lint environment
+[tool.hatch.envs.lint.scripts]
+run-black = 'black --quiet --check --diff {args:.}'
+python = ['run-black']
+all = ['python', 'templates']
+
+[tool.hatch.envs.lint]
+detached = true
+dependencies = [
+  'black>=23.1.0',
+  'mypy>=1.0.0',
+]
+
+[tool.pylint.format]
+max-line-length = "88"
+
+[tool.black]
+target-version = ['py38']
+line-length = 88
+skip-string-normalization = true
+include = '\.pyi?$'
+
+# Test environment
+[[tool.hatch.envs.test.matrix]]
+python = ['3.8', '3.9', '3.10', '3.11', '3.12']
+
+[tool.hatch.envs.test]
+dependencies = [
+    'es-testbed==0.8.5',
+    'requests',
+    'pytest >=7.2.1',
+    'pytest-cov',
+    'python-dotenv==1.0.1',
+]
+
+[tool.hatch.envs.test.scripts]
+test = 'pytest'
+test-cov = 'pytest --cov=es_pii_tool'
+cov-report = 'pytest --cov=es_pii_tool --cov-report html:cov_html'
+
+[tool.distutils.build_exe]
+excludes = ['tcltk', 'tkinter', 'unittest']
+zip_include_packages = ['certifi']

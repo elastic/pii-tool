@@ -1,0 +1,13 @@
+---
+elasticsearch:
+  client:
+    hosts: [ "https://sofi-ss-test.es.us-central1.gcp.cloud.es.io" ]
+  other_settings:
+    username: "elastic"
+    password: "MKnXdAIbsypNgHDCXsuevGur"
+
+logging:
+  loglevel: INFO
+  blacklist: ["urllib3", "elastic_transport"]
+  #logfile: "/Users/buh/SoFi/output.log"
+  logformat: default
