@@ -1,0 +1,38 @@
+---
+redactions:
+  - 20240824_first_pass:
+      pattern: 'partial-.ds-es-testbed-ds-scenario-frozen_ds-*'
+      query: {'match': {'message': 'message1'}}
+      fields: ['message']
+      message: FIRST PASS
+      expected_docs: 1
+      restore_settings: {'index.routing.allocation.include._tier_preference': 'data_warm,data_hot,data_content'}
+      forcemerge:
+        max_num_segments: 1
+  - 20240824_second_pass:
+      pattern: 'partial-.ds-es-testbed-ds-scenario-frozen_ds-*'
+      query: {'match': {'nested.key': 'nested19'}}
+      fields: ['nested.key']
+      message: SECOND PASS
+      expected_docs: 1
+      restore_settings: {'index.routing.allocation.include._tier_preference': 'data_warm,data_hot,data_content'}
+      forcemerge:
+        max_num_segments: 1
+  - 20240824_third_pass:
+      pattern: '*es-testbed-ds-scenario-frozen_ds-*'
+      query: {'match': {'deep.l1.l2.l3': 'deep3'}}
+      fields: ['nested.key']
+      message: THIRD PASS
+      expected_docs: 1
+      forcemerge:
+        max_num_segments: 1
+  - 20240824_final_pass:
+      pattern: '*es-testbed-ds-scenario-frozen_ds-*'
+      query: {'range': {'number': {'gte': 8, 'lte': 11}}}
+      fields: ['deep.l1.l2.l3']
+      message: FINAL PASS
+      expected_docs: 4
+      forcemerge:
+        max_num_segments: 1
+        only_expunge_deletes: True
+

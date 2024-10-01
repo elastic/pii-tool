@@ -1,0 +1,40 @@
+---
+# If you start the file with --- then subsequent lines can start with # to be a comment
+# YAML requires the first line to be a key, or --- and cannot be a comment
+# 
+# Jobs are executed sequentially
+#
+redactions:
+  - JOB_NAME_1:                      # Must be unique. Used in tracking index
+      pattern: ''                    # The index search pattern
+      query: {}                      # The query in JSON/Python dict form
+      fields: []                     # field names to redact
+      message: 'REDACTED'            # The value which will replace existing field values
+      delete: True                   # Delete original indices after restoring, redacting, and mounting
+      expected_docs: 1               # Number of doc hits which query will have — Failsafe, must match
+      restore_settings: {}           # Index settings for restored indices (if needed)
+      forcemerge:
+        max_num_segments: 1          # Default is 1
+        only_expunge_deletes: False  # If True, max_num_segments is ignored and only deletes happen
+  - JOB_NAME_2:                      # Must be unique. Used in tracking index
+      pattern: ''                    # The index search pattern
+      query: {}                      # The query in JSON/Python dict form
+      fields: []                     # field names to redact
+      message: 'REDACTED'            # The value which will replace existing field values
+      delete: True                   # Delete original indices after restoring, redacting, and mounting
+      expected_docs: 1               # Number of doc hits which query will have — Failsafe, must match
+      restore_settings: {}           # Index settings for restored indices (if needed)
+      forcemerge:
+        max_num_segments: 1          # Default is 1
+        only_expunge_deletes: False  # If True, max_num_segments is ignored and only deletes happen
+  - JOB_NAME_3:                      # Must be unique. Used in tracking index
+      pattern: ''                    # The index search pattern
+      query: {}                      # The query in JSON/Python dict form
+      fields: []                     # field names to redact
+      message: 'REDACTED'            # The value which will replace existing field values
+      delete: True                   # Delete original indices after restoring, redacting, and mounting
+      expected_docs: 1               # Number of doc hits which query will have — Failsafe, must match
+      restore_settings: {}           # Index settings for restored indices (if needed)
+      forcemerge:
+        max_num_segments: 1          # Default is 1
+        only_expunge_deletes: False  # If True, max_num_segments is ignored and only deletes happen
