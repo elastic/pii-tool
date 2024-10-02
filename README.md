@@ -429,6 +429,13 @@ a shared fs snapshot repository. No extra flags needed.
 
 ### Testing
 
+Required steps to test:
+
+* Fork and/or clone the repository
+* `pip install -U '.[doc,test]'`
+
+That last step will install all testing dependencies.
+
 With `docker_test` so integral to testing `es-pii-tool`, an effort was made to make
 the setup and teardown of the Docker containers automatic.
 
