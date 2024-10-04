@@ -12,7 +12,7 @@ FROM python:${PYVER}-alpine${ALPTAG} AS builder
 ARG ALPTAG
 RUN echo "https://dl-cdn.alpinelinux.org/alpine/v${ALPTAG}/community/" >> /etc/apk/repositories
 RUN apk --no-cache upgrade && apk --no-cache add build-base tar musl-utils openssl-dev patchelf
-# patchelf-wrapper is necessary now for cx_Freeze, but not for Curator itself.
+# patchelf-wrapper is necessary for cx_Freeze
 RUN pip3 install cx_Freeze patchelf-wrapper
 
 COPY . .

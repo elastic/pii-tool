@@ -451,7 +451,7 @@ The output looks like this:
 
 ```
 $ pytest --docker_create true --docker_destroy true
-Running: "/Users/buh/WORK/es-pii-tool/docker_test/create.sh 8.15.1 frozen_node"
+Running: "/path/to/es-pii-tool/docker_test/create.sh 8.15.1 frozen_node"
 
 Using scenario: frozen_node
 Using Elasticsearch version 8.15.1
@@ -473,7 +473,7 @@ All nodes ready to test!
 Environment variables are in .env[-shell]
 ===================================================== test session starts =====================================================
 platform darwin -- Python 3.12.2, pytest-8.1.1, pluggy-1.5.0
-rootdir: /Users/buh/WORK/es-pii-tool
+rootdir: /path/to/es-pii-tool
 configfile: pytest.ini
 plugins: cov-5.0.0, anyio-4.3.0, returns-0.22.0
 collected 70 items
@@ -486,7 +486,6 @@ tests/integration/test_hot.py ....................                              
 
 
 =============================================== 70 passed in 148.31s (0:02:28) ================================================
-
 ```
 
 #### Errors during testing
