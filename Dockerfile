@@ -5,7 +5,7 @@ ARG EXECUTABLE=${EXEPATH}/${EXENAME}
 ARG LDPATH=${EXEPATH}/lib
 ARG CONFIGPATH=/.config
 ARG PYVER=3.12.7
-ARG ALPTAG=3.20
+ARG ALPTAG=3.21@sha256:21dc6063fd678b478f57c0e13f47560d0ea4eeba26dfc947b2a4f81f686b9f45
 FROM python:${PYVER}-alpine${ALPTAG} AS builder
 
 # Add the community repo for access to patchelf binary package
