@@ -71,6 +71,9 @@ class TestDefault(TestBuiltin):
 
     builtin = 'searchable_test'
 
+    # These tests are disabled for now, as they are not likely to be needed unless
+    # something very odd and unexpected is found in the future.
+
     # def test_first_pass_pattern(self, first_pass, tierpattern):
     #     """Check that our first_pass search pattern is as expected"""
     #     actual = first_pass['first_pass']['pattern']
@@ -113,30 +116,35 @@ class TestDefault(TestBuiltin):
             assert False
         assert True
 
-    def test_first_pass_results(self, client, tracker):
-        """Evaluate the success of the first_pass job"""
-        doc = client.get(index=tracker, id='first_pass')
-        logger.debug('first_pass job results: %s', doc)
-        assert doc['_source']['completed']
-        assert not doc['_source']['errors']
+    # These confirmation tests are disabled. Should one of these validations fail,
+    # the redaction process would also fail, making these tests redundant. They
+    # were useful during development, but are not needed for regular testing.
+    # They are preserved in case something comes up.
 
-    def test_second_pass_results(self, client, tracker):
-        """Evaluate the success of the second_pass job"""
-        doc = client.get(index=tracker, id='second_pass')
-        logger.debug('second_pass job results: %s', doc)
-        assert doc['_source']['completed']
-        assert not doc['_source']['errors']
+    # def test_first_pass_results(self, client, tracker):
+    #     """Evaluate the success of the first_pass job"""
+    #     doc = client.get(index=tracker, id='first_pass')
+    #     logger.debug('first_pass job results: %s', doc)
+    #     assert doc['_source']['completed']
+    #     assert not doc['_source']['errors']
 
-    def test_third_pass_results(self, client, tracker):
-        """Evaluate the success of the third_pass job"""
-        doc = client.get(index=tracker, id='third_pass')
-        logger.debug('third_pass job results: %s', doc)
-        assert doc['_source']['completed']
-        assert not doc['_source']['errors']
+    # def test_second_pass_results(self, client, tracker):
+    #     """Evaluate the success of the second_pass job"""
+    #     doc = client.get(index=tracker, id='second_pass')
+    #     logger.debug('second_pass job results: %s', doc)
+    #     assert doc['_source']['completed']
+    #     assert not doc['_source']['errors']
 
-    def test_final_pass_results(self, client, tracker):
-        """Evaluate the success of the final_pass job"""
-        doc = client.get(index=tracker, id='final_pass')
-        logger.debug('final_pass job results: %s', doc)
-        assert doc['_source']['completed']
-        assert not doc['_source']['errors']
+    # def test_third_pass_results(self, client, tracker):
+    #     """Evaluate the success of the third_pass job"""
+    #     doc = client.get(index=tracker, id='third_pass')
+    #     logger.debug('third_pass job results: %s', doc)
+    #     assert doc['_source']['completed']
+    #     assert not doc['_source']['errors']
+
+    # def test_final_pass_results(self, client, tracker):
+    #     """Evaluate the success of the final_pass job"""
+    #     doc = client.get(index=tracker, id='final_pass')
+    #     logger.debug('final_pass job results: %s', doc)
+    #     assert doc['_source']['completed']
+    #     assert not doc['_source']['errors']
