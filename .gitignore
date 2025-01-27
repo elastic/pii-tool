@@ -1,5 +1,6 @@
 # Local Files
 connect.yml
+client.yaml
 frozen_ds.yaml
 mapping.yaml
 http_ca.crt
