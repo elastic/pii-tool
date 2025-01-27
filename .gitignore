@@ -4,6 +4,8 @@ frozen_ds.yaml
 mapping.yaml
 http_ca.crt
 docker_test/.kurl
+.env-shell
+.env-cloud
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
