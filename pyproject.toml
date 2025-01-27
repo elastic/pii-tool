@@ -29,8 +29,8 @@ keywords = [
     'index'
 ]
 dependencies = [
-    'es_client>=8.15.1',
-    'es_wait>=0.9.1',
+    'es_client>=8.17.1',
+    'es_wait>=0.9.4',
 ]
 
 [project.optional-dependencies]

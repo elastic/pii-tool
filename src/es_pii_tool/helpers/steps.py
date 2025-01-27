@@ -402,7 +402,12 @@ def confirm_ilm_phase(task: 'Task', stepname, var: DotMap, **kwargs) -> None:
     # Wait for phase to be "new"
     waitkw = {'pause': PAUSE_VALUE, 'timeout': TIMEOUT_VALUE}
     try:
+        # Update in es_wait 0.9.2:
+        # - If you send phase='new', it will wait for the phase to be 'new' or higher
+        # - This is where a user was getting stuck. They were waiting for 'new' but
+        # - the phase was already 'frozen', so it was endlessly checking for 'new'.
         es_waiter(var.client, IlmPhase, name=var.mount_name, phase='new', **waitkw)
+        # Wait for step to be "complete"
         es_waiter(var.client, IlmStep, name=var.mount_name, **waitkw)
     except BadClientResult as exc:
         failed_step(task, stepname, exc)
@@ -419,22 +424,34 @@ def confirm_ilm_phase(task: 'Task', stepname, var: DotMap, **kwargs) -> None:
     currstep = {'phase': expl['phase'], 'action': expl['action'], 'name': expl['step']}
     nextstep = {'phase': var.phase, 'action': 'complete', 'name': 'complete'}
     if not task.job.dry_run:  # Don't actually move_to_step if dry_run
-        logger.debug('currstep: %s', currstep)
-        logger.debug('nextstep: %s', nextstep)
-        logger.debug('PHASE: %s', var.phase)
-        try:
-            api.ilm_move(var.client, var.mount_name, currstep, nextstep)
-        except BadClientResult as exc:
-            failed_step(task, stepname, exc)
-        try:
-            es_waiter(
-                var.client, IlmPhase, name=var.mount_name, phase=var.phase, **waitkw
+        # Since we are now testing for 'new' or higher, we may not need to advance
+        # ILM phases. If the current step is already where we expect to be, log
+        # confirmation and move on.
+        if currstep == nextstep:
+            msg = (
+                f'{stepname}: {var.mount_name} is confirmed to be in ILM phase '
+                f'{var.phase}'
             )
-            es_waiter(var.client, IlmStep, name=var.mount_name, **waitkw)
-        except BadClientResult as phase_err:
-            msg = f'Unable to wait for ILM step to complete: ERROR :{phase_err}'
-            logger.error(msg)
-            failed_step(task, stepname, phase_err)
+            logger.debug(msg)
+        else:
+            # If we are not yet in the expected target phase, then proceed with the
+            # ILM phase change.
+            logger.debug('Current ILM Phase: %s', currstep)
+            logger.debug('Target ILM Phase: %s', nextstep)
+            logger.debug('PHASE: %s', var.phase)
+            try:
+                api.ilm_move(var.client, var.mount_name, currstep, nextstep)
+            except BadClientResult as exc:
+                failed_step(task, stepname, exc)
+            try:
+                es_waiter(
+                    var.client, IlmPhase, name=var.mount_name, phase=var.phase, **waitkw
+                )
+                es_waiter(var.client, IlmStep, name=var.mount_name, **waitkw)
+            except BadClientResult as phase_err:
+                msg = f'Unable to wait for ILM step to complete: ERROR :{phase_err}'
+                logger.error(msg)
+                failed_step(task, stepname, phase_err)
     else:
         msg = (
             f'{stepname}: Dry-Run: {var.mount_name} not moved/confirmed to ILM '

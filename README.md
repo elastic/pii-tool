@@ -440,12 +440,12 @@ With `docker_test` so integral to testing `es-pii-tool`, an effort was made to m
 the setup and teardown of the Docker containers automatic.
 
 ```
-$ pytest --docker_create true --docker_destroy true
+$ pytest --docker_create true --docker_destroy true --es_version 8.15.1
 ```
 
 If `--docker_create true` and/or `--docker_destroy true` are omitted, the tests
 will assume you already have a functional test environment and the environment
-variables are configured in `.env`.
+variables are configured in `.env`, and that the `.env` file has been `source`-ed.
 
 The output looks like this:
 
