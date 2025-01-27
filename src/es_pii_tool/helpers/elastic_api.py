@@ -176,15 +176,15 @@ def do_search(
     :type query: dict
     :type size: int
     """
+    kwargs = {
+        'index': index_pattern,
+        'query': query,
+        'size': size,
+        'expand_wildcards': ['open', 'hidden'],
+    }
+    logger.debug('Search kwargs = %s', kwargs)
     try:
-        response = dict(
-            client.search(
-                index=index_pattern,
-                query=query,
-                size=size,
-                expand_wildcards=['open', 'hidden'],
-            )
-        )
+        response = dict(client.search(**kwargs))  # type: ignore
         logger.debug(response)
     except (ApiError, NotFoundError, TransportError, BadRequestError) as err:
         msg = f'Attempt to collect search results yielded an exception: {err}'
@@ -738,9 +738,6 @@ def restore_index(
         )
         logger.debug('Response = %s', response)
         logger.info('Checking if restoration completed...')
-        # restore_check = Restore(
-        #     client, pause=PAUSE_VALUE, timeout=TIMEOUT_VALUE, index_list=[replacement]
-        # )
         try:
             es_waiter(client, Restore, index_list=[replacement], **WAITKW)
         except BadClientResult as exc:
@@ -755,6 +752,14 @@ def restore_index(
         )
         logger.error(msg)
         raise BadClientResult(msg, err)
+    # verify index is green
+    logger.info('Ensuring restored index is in "green" health state...')
+    res = dict(client.cluster.health(index=replacement, filter_path='status'))
+    logger.debug('res = %s', res)
+    if res['status'] == 'red':
+        msg = f'Restored index {replacement} is not in a healthy state'
+        logger.error(msg)
+        raise ValueMismatch(msg, 'index health is "red"', 'green or yellow')
 
 
 def redact_from_index(client: 'Elasticsearch', index_name: str, config: t.Dict) -> None:
