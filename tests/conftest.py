@@ -25,7 +25,7 @@ TPREF = 'data_warm,data_hot,data_content'
 cli_params = {
     'docker_create': 'False',
     'docker_destroy': 'False',
-    'es_version': '8.15.1',
+    'es_version': '8.17.1',
 }
 
 
@@ -378,7 +378,7 @@ def skip_localhost() -> None:
     def _skip_localhost(skip_it: bool) -> None:
         if skip_it:
             host = environ.get('TEST_ES_SERVER')
-            file = environ.get('ES_CLIENT_FILE', None)  # Path to es_client YAML config
+            file = environ.get('ESCLIENT_FILE', None)  # Path to es_client YAML config
             repo = environ.get('TEST_ES_REPO')
             if repo == LOCALREPO and host == 'https://127.0.0.1:9200' and not file:
                 pytest.skip(
