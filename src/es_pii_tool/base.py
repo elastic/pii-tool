@@ -53,7 +53,12 @@ class PiiTool:
             return True  # We're done already
         # Log task start
         task.begin()
-        hits = get_hits(self.client, job.config['pattern'], job.config['query'])
+        hits = 0
+        try:
+            hits = get_hits(self.client, job.config['pattern'], job.config['query'])
+        except Exception as err:
+            logger.critical('Unable to count query result hits: %s', err)
+            raise err
         msg = f'{hits} hit(s)'
         logger.debug(msg)
         task.add_log(msg)
