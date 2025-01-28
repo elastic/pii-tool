@@ -458,6 +458,9 @@ def confirm_ilm_phase(task: 'Task', stepname, var: DotMap, **kwargs) -> None:
                 f'{var.phase}'
             )
             logger.debug(msg)
+            # Set both while loop critera to values that will end the loop
+            success = True
+            attempts = 3
         else:
             # If we are not yet in the expected target phase, then proceed with the
             # ILM phase change.
