@@ -151,12 +151,12 @@ class RedactIndex:
             snp = RedactSnapshot(self.index, self.task.job, self.data.phase)
         except Exception as exc:
             logger.critical('Unable to build RedactSnapshot object. Exception: %s', exc)
-            raise
+            raise exc
         try:
             snp.run()
         except Exception as exc:
             logger.critical('Unable to run RedactSnapshot object. Exception: %s', exc)
-            raise
+            raise exc
 
     def run(self):
         """Do the actual run"""

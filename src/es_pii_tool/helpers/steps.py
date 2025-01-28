@@ -2,6 +2,7 @@
 
 from os import getenv
 import typing as t
+import time
 import logging
 from dotmap import DotMap  # type: ignore
 from es_wait import IlmPhase, IlmStep
@@ -51,16 +52,17 @@ def log_step(task, stepname: str, kind: str):
 def failed_step(task: 'Task', stepname: str, exc):
     """Function to avoid repetition of code if a step fails"""
     # MissingIndex, BadClientResult are the only ones inbound
-    upstream = (
-        f'The upstream exception type was {exc.upstream.__name__}, '
-        f'with error message: {exc.upstream.args[0]}'
-    )
     if isinstance(exc, MissingIndex):
-        msg = f'Step failed because index {exc.missing} was not found. {upstream}'
+        msg = (
+            f'Step failed because index {exc.missing} was not found. The upstream '
+            f'exception type was MissingIndex, with error message: '
+            f'{exc.upstream.args[0]}'
+        )
     elif isinstance(exc, BadClientResult):
         msg = (
             f'Step failed because of a bad or unexpected response or result from '
-            f'the Elasticsearch cluster. {upstream}'
+            f'the Elasticsearch cluster. The upstream exception type was '
+            f'BadClientResult, with error message: {exc.upstream.args[0]}'
         )
     else:
         msg = f'Step failed for an unexpected reason: {exc}'
@@ -412,21 +414,44 @@ def confirm_ilm_phase(task: 'Task', stepname, var: DotMap, **kwargs) -> None:
     except BadClientResult as exc:
         failed_step(task, stepname, exc)
 
-    try:
-        _ = api.generic_get(var.client.ilm.explain_lifecycle, index=var.mount_name)
-    except MissingError as exc:
-        logger.error('Cannot confirm %s is in phase %s', var.mount_name, var.phase)
-        failed_step(task, stepname, exc)
-    expl = _['indices'][var.mount_name]
-    if not expl['managed']:
-        msg = f'Index {var.mount_name} is not managed by ILM'
-        raise ValueMismatch(msg, expl['managed'], '{"managed": True}')
-    currstep = {'phase': expl['phase'], 'action': expl['action'], 'name': expl['step']}
+    def get_currstep():
+        try:
+            _ = api.generic_get(var.client.ilm.explain_lifecycle, index=var.mount_name)
+        except MissingError as exc:
+            logger.error('Unable to get ILM phase of %s', var.mount_name)
+            failed_step(task, stepname, exc)
+        try:
+            expl = _['indices'][var.mount_name]
+        except KeyError as err:
+            msg = f'{var.mount_name} not found in ILM explain data: {err}'
+            logger.error(msg)
+            failed_step(task, stepname, err)
+        if 'managed' not in expl:
+            msg = f'Index {var.mount_name} is not managed by ILM'
+            raise ValueMismatch(msg, expl['managed'], '{"managed": True}')
+        return {'phase': expl['phase'], 'action': expl['action'], 'name': expl['step']}
+
     nextstep = {'phase': var.phase, 'action': 'complete', 'name': 'complete'}
-    if not task.job.dry_run:  # Don't actually move_to_step if dry_run
+    if task.job.dry_run:  # Don't actually move_to_step if dry_run
+        msg = (
+            f'{stepname}: Dry-Run: {var.mount_name} not moved/confirmed to ILM '
+            f'phase {var.phase}'
+        )
+        logger.debug(msg)
+        log_step(task, stepname, 'dry-run')
+        log_step(task, stepname, 'end')
+        return
+
+    # We will try to move the index to the expected phase up to 3 times
+    # before failing the step.
+    attempts = 0
+    success = False
+    while attempts < 3 and not success:
         # Since we are now testing for 'new' or higher, we may not need to advance
         # ILM phases. If the current step is already where we expect to be, log
         # confirmation and move on.
+        logger.debug('Attempt number: %s', attempts)
+        currstep = get_currstep()
         if currstep == nextstep:
             msg = (
                 f'{stepname}: {var.mount_name} is confirmed to be in ILM phase '
@@ -441,24 +466,27 @@ def confirm_ilm_phase(task: 'Task', stepname, var: DotMap, **kwargs) -> None:
             logger.debug('PHASE: %s', var.phase)
             try:
                 api.ilm_move(var.client, var.mount_name, currstep, nextstep)
-            except BadClientResult as exc:
-                failed_step(task, stepname, exc)
+                success = True
+            except BadClientResult as mvfail:
+                logger.debug('Attempt failed. Incrementing attempts.')
+                attempts += 1
+                if attempts == 3:
+                    logger.error('Attempt limit reached. Failing step.')
+                    failed_step(task, stepname, mvfail)
+                logger.debug('Waiting %s seconds before retrying...', PAUSE_VALUE)
+                time.sleep(PAUSE_VALUE)
+                logger.warning('ILM move failed: %s -- Retrying...', mvfail.message)
+                continue
             try:
                 es_waiter(
                     var.client, IlmPhase, name=var.mount_name, phase=var.phase, **waitkw
                 )
                 es_waiter(var.client, IlmStep, name=var.mount_name, **waitkw)
             except BadClientResult as phase_err:
-                msg = f'Unable to wait for ILM step to complete: ERROR :{phase_err}'
+                msg = f'Unable to wait for ILM step to complete -- ERROR: {phase_err}'
                 logger.error(msg)
                 failed_step(task, stepname, phase_err)
-    else:
-        msg = (
-            f'{stepname}: Dry-Run: {var.mount_name} not moved/confirmed to ILM '
-            f'phase {var.phase}'
-        )
-        logger.debug(msg)
-        log_step(task, stepname, 'dry-run')
+    # If we make it here, we have successfully moved the index to the expected phase
     log_step(task, stepname, 'end')
 
 
