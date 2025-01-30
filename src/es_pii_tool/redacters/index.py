@@ -8,7 +8,7 @@ from es_pii_tool.exceptions import (
     FatalError,
     MissingIndex,
 )
-from es_pii_tool.task import Task
+from es_pii_tool.trackables import Task
 from es_pii_tool.helpers.utils import (
     exception_msgmaker,
     get_field_matches,
@@ -26,7 +26,11 @@ class RedactIndex:
     """Redact index per settings"""
 
     def __init__(self, index: str, job: 'Job', counter: int):
-        self.task = Task(job, index=index, id_suffix='REDACT-INDEX')
+        try:
+            self.task = Task(job, index=index, id_suffix='REDACT-INDEX')
+        except Exception as exc:
+            logger.critical('Unable to create task: %s', exc)
+            raise FatalError('Unable to create task', exc) from exc
         self.index = index
         self.counter = counter
         self.data = DotMap()
