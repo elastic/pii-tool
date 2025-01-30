@@ -5,6 +5,7 @@ frozen_ds.yaml
 mapping.yaml
 http_ca.crt
 docker_test/.kurl
+docker_test/repo
 .env-shell
 .env-cloud
 

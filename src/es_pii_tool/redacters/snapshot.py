@@ -4,7 +4,8 @@ import typing as t
 import logging
 from datetime import datetime
 from dotmap import DotMap  # type: ignore
-from es_pii_tool.task import Task
+from es_pii_tool.exceptions import FatalError
+from es_pii_tool.trackables import Task
 from es_pii_tool.helpers import elastic_api as api
 from es_pii_tool.helpers.utils import (
     get_inc_version,
@@ -25,7 +26,11 @@ class RedactSnapshot:
     def __init__(self, index: str, job: 'Job', phase: str):
         self.index = index
         self.phase = phase
-        self.task = Task(job, index=index, id_suffix='REDACT-SNAPSHOT')
+        try:
+            self.task = Task(job, index=index, id_suffix='REDACT-SNAPSHOT')
+        except Exception as exc:
+            logger.critical('Unable to create task: %s', exc)
+            raise FatalError('Unable to create task', exc) from exc
         # self.var = self.ConfigAttrs(job.client, index, phase)
         self.var = DotMap()
         self._buildvar(job.client, index, phase)

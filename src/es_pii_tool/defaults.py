@@ -91,6 +91,7 @@ def status_mappings() -> t.Dict:
         'properties': {
             'job': {'type': 'keyword'},
             'task': {'type': 'keyword'},
+            'step': {'type': 'keyword'},
             'join_field': {'type': 'join', 'relations': {'job': 'task'}},
             'cleanup': {'type': 'keyword'},
             'completed': {'type': 'boolean'},

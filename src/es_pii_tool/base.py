@@ -6,7 +6,7 @@ import logging
 from es_pii_tool.exceptions import FatalError, MissingIndex
 from es_pii_tool.job import Job
 from es_pii_tool.redacters.index import RedactIndex
-from es_pii_tool.task import Task
+from es_pii_tool.trackables import Task
 from es_pii_tool.helpers.elastic_api import get_hits
 from es_pii_tool.helpers.utils import end_it, get_redactions
 
@@ -46,7 +46,11 @@ class PiiTool:
         :rtype: None
         :returns: No return value
         """
-        task = Task(job, task_id=f'PRE---{job.name}---DOC-COUNT-VERIFICATION')
+        try:
+            task = Task(job, task_id=f'PRE---{job.name}---DOC-COUNT-VERIFICATION')
+        except Exception as err:
+            logger.critical('Unable to create task: %s', err)
+            raise FatalError('Unable to create task', err) from err
         success = False
         errors = False
         if task.finished():
@@ -93,11 +97,15 @@ class PiiTool:
         """Iterate over every index in job.indices"""
         all_succeeded = True
         for idx in job.indices:
-            task = Task(job, index=idx, id_suffix='PARENT-TASK')
-            # First check to see if idx has been touched as part of a previous run
-            if task.finished():
-                continue  # This index has already been verified
-            task.begin()
+            try:
+                task = Task(job, index=idx, id_suffix='PARENT-TASK')
+                # First check to see if idx has been touched as part of a previous run
+                if task.finished():
+                    continue  # This index has already been verified
+                task.begin()
+            except Exception as err:
+                logger.critical('Unable to create task: %s', err)
+                raise FatalError('Unable to create task', err) from err
             task_success = False
             try:
                 msg = f'Iterating per index: Index {idx} of {job.indices}'

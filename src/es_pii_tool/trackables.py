@@ -3,54 +3,43 @@
 import typing as t
 import logging
 from es_pii_tool.exceptions import FatalError, MissingArgument, MissingDocument
-from es_pii_tool.helpers.elastic_api import get_task_doc, update_doc
+from es_pii_tool.helpers.elastic_api import get_progress_doc, update_doc
 from es_pii_tool.helpers.utils import now_iso8601
 
 if t.TYPE_CHECKING:
     from es_pii_tool.job import Job
+
 
 MOD = __name__
 
 # pylint: disable=R0902,W0707
 
 
-class Task:
-    """An individual task item, tracked in Elasticsearch"""
+class Trackable:
+    """An individual task or, tracked in Elasticsearch"""
 
     ATTRLIST = ['start_time', 'completed', 'end_time', 'errors', 'logs']
 
     def __init__(
         self,
-        job: 'Job',
-        index: t.Union[str, None] = None,
-        id_suffix: t.Union[str, None] = None,
-        task_id: t.Union[str, None] = None,
+        job: t.Optional['Job'] = None,
+        index: str = '',
     ):
         self.logger = logging.getLogger(f'{MOD}.{self.__class__.__name__}')
-        self.job = job
-        if task_id:
-            self.task_id = task_id
-        elif not id_suffix or not index:
-            missing = ['task_id']
-            if id_suffix is None:
-                missing.append('id_suffix')
-            if index is None:
-                missing.append('index')
-            raise MissingArgument(
-                'task_id, or both index and id_suffix must be provided',
-                'keyword argument(s)',
-                missing,
-            )
-        else:
-            self.task_id = f'{index}---{id_suffix}'
+        self.stub = ''
+        if job:
+            self.job = job
+            self.stub = f'Job: {job.name}'
         self.index = index
+        self.task_id = ''
+        self.stepname = ''
         self.doc_id = None
-        self.get_history()
 
     @property
     def status(self) -> t.Dict:
         """
-        The status of the current task, or retrieved from an previous incomplete task
+        The status of the current trackable, or retrieved from an previous
+        incomplete trackable
         """
         return self._status
 
@@ -60,7 +49,7 @@ class Task:
 
     @property
     def start_time(self) -> str:
-        """The ISO8601 string representing the start time of this task"""
+        """The ISO8601 string representing the start time of this trackable"""
         return self._start_time
 
     @start_time.setter
@@ -69,7 +58,7 @@ class Task:
 
     @property
     def end_time(self) -> str:
-        """The ISO8601 string representing the end time of this task"""
+        """The ISO8601 string representing the end time of this trackable"""
         return self._end_time
 
     @end_time.setter
@@ -78,7 +67,7 @@ class Task:
 
     @property
     def completed(self) -> bool:
-        """Is the task completed? or Did the task complete successfully?"""
+        """Is the trackable completed? or Did the trackable complete successfully?"""
         return self._completed
 
     @completed.setter
@@ -87,7 +76,7 @@ class Task:
 
     @property
     def errors(self) -> bool:
-        """Were errors encountered during this task?"""
+        """Were errors encountered during this trackable?"""
         return self._errors
 
     @errors.setter
@@ -96,7 +85,7 @@ class Task:
 
     @property
     def logs(self) -> t.Sequence[str]:
-        """The list of log lines collected during this task"""
+        """The list of log lines collected during this trackable"""
         return self._logs
 
     @logs.setter
@@ -125,22 +114,24 @@ class Task:
                 else:
                     setattr(self, key, None)
 
-    def get_task(self) -> t.Dict:
-        """Get any task history that may exist for self.job.name and self.task_id
+    def get_trackable(self) -> t.Dict:
+        """
+        Get any history that may exist for self.stepname of self.task_id of
+        self.job.name
 
-        :returns: The task object from the progress/status update doc
+        :returns: The step object from the progress/status update doc
         """
         retval = {}
         try:
-            retval = get_task_doc(
-                self.job.client, self.job.index, self.job.name, self.task_id
-            )
-        except MissingDocument:
-            self.logger.debug(
-                'Doc tracking job: %s, task: %s does not exist yet',
+            retval = get_progress_doc(
+                self.job.client,
+                self.job.index,
                 self.job.name,
                 self.task_id,
+                stepname=self.stepname,
             )
+        except MissingDocument:
+            self.logger.debug('Doc tracking %s does not exist yet', self.stub)
             return retval
         except Exception as exc:
             msg = f'Fatal error encountered: {exc.args[0]}'
@@ -151,15 +142,13 @@ class Task:
 
     def get_history(self) -> None:
         """
-        Get the history of a taskid, if any. Ensure all values are populated from the
-        doc, or None
+        Get the history of self.stepname, if any. Ensure all values are populated
+        from the doc, or None
         """
-        self.logger.debug('Pulling any history for task: %s', self.task_id)
-        self.status = self.get_task()
+        self.logger.debug('Pulling any history for %s', self.stub)
+        self.status = self.get_trackable()
         if not self.status:
-            self.logger.debug(
-                'No history for job: %s, task: %s', self.job.name, self.task_id
-            )
+            self.logger.debug('No history for %s', self.stub)
         self.load_status()
 
     def report_history(self) -> None:
@@ -167,7 +156,7 @@ class Task:
         Get the history of any prior attempt to run self.task_id of self.job.name
         Log aspects of the history here.
         """
-        prefix = f'The prior run of job: {self.job.name}, task: {self.task_id}'
+        prefix = f'The prior run of {self.stub}'
         if self.start_time:
             self.logger.info('%s started at %s', prefix, self.start_time)
         if self.completed:
@@ -185,8 +174,8 @@ class Task:
                 self.logger.warning('%s had log(s): %s', prefix, self.logs)
 
     def begin(self) -> None:
-        """Begin the task and record the current status"""
-        self.logger.info('Beginning job: %s, task: %s', self.job.name, self.task_id)
+        """Begin the step and record the current status"""
+        self.logger.info('Beginning %s', self.stub)
         if self.job.dry_run:
             msg = 'DRY-RUN: No changes will be made'
             self.logger.info(msg)
@@ -195,7 +184,7 @@ class Task:
         self.completed = False
         self.record()
         if not self.doc_id:
-            self.get_task()
+            self.get_trackable()
             self.load_status()
             self.logger.debug('self.doc_id = %s', self.doc_id)
 
@@ -205,11 +194,11 @@ class Task:
         errors: bool = False,
         logmsg: t.Union[str, None] = None,
     ) -> None:
-        """End the task and record the current status
+        """End the step and record the current status
 
-        :param completed: Did the job complete successfully?
-        :param errors: Were errors encountered doing the job?
-        :param logs: Logs recorded doing the job (only if errors)
+        :param completed: Did the step complete successfully?
+        :param errors: Were errors encountered doing the step?
+        :param logs: Logs recorded doing the step (only if errors)
         """
         self.end_time = now_iso8601()
         self.completed = completed
@@ -217,12 +206,7 @@ class Task:
         if logmsg:
             self.add_log(logmsg)
         self.record()
-        self.logger.info(
-            'Job: %s, task: %s ended. Completed: %s',
-            self.job.name,
-            self.task_id,
-            completed,
-        )
+        self.logger.info('%s ended. Completed: %s', self.stub, completed)
 
     def update_status(self) -> None:
         """Update instance attribute doc with the current values"""
@@ -244,14 +228,18 @@ class Task:
         for key in self.ATTRLIST:
             if key in self.status:
                 doc[key] = self.status[key]
+        # Only add this field if self.index is not empty/None
         if self.index:
-            # For the PRE check, there is no value here, so let's not add a null field.
             doc['index'] = self.index
+        # Only add this field if self.stepname is not empty/None
+        if self.stepname:
+            doc['step'] = self.stepname
+        # Only add this field if self.task_id not empty/None
+        if self.task_id:
+            doc['task'] = self.task_id  # Necessary for the parent-child relationship
         doc['job'] = self.job.name
-        doc['task'] = self.task_id
-        doc['join_field'] = {'name': 'task', 'parent': self.job.name}
         doc['dry_run'] = self.job.dry_run
-        # self.logger.debug('Updated task doc: %s', doc)
+        # self.logger.debug('Updated step doc: %s', doc)
         return doc
 
     def record(self) -> None:
@@ -268,25 +256,81 @@ class Task:
 
     def finished(self) -> bool:
         """
-        Check if a prior run was recorded for this task and log accordingly
+        Check if a prior run was recorded for this step and log accordingly
 
         :returns: State of whether a prior run failed to complete
         """
         if self.completed:
             if self.job.dry_run:
-                self.logger.info(
-                    'DRY-RUN: Ignoring previous run of job: %s, task %s',
-                    self.job.name,
-                    self.task_id,
-                )
+                self.logger.info('DRY-RUN: Ignoring previous run of %s', self.stub)
             else:
-                self.logger.info(
-                    'Job: %s, task: %s was completed previously.',
-                    self.job.name,
-                    self.task_id,
-                )
+                self.logger.info('%s was completed previously.', self.stub)
                 return True
         if self.start_time:
             self.report_history()
-            self.logger.warning('Restarting or resuming task: %s', self.task_id)
+            self.logger.warning('%s was not completed in a previous run.', self.stub)
         return False
+
+
+class Task(Trackable):
+    """An individual task item, tracked in Elasticsearch"""
+
+    def __init__(
+        self,
+        job: t.Optional['Job'] = None,
+        index: str = '',
+        id_suffix: str = '',
+        task_id: str = '',
+    ):
+        super().__init__(job=job, index=index)
+        self.logger = logging.getLogger(f'{MOD}.{self.__class__.__name__}')
+        if job is None:
+            raise MissingArgument('job', 'keyword argument', 'job')
+        if task_id:
+            self.task_id = task_id
+        elif not index or not id_suffix:
+            missing = ['task_id']
+            if not index:
+                missing.append('index')
+            if not id_suffix:
+                missing.append('id_suffix')
+            raise MissingArgument(
+                'task_id, or both index and id_suffix must be provided',
+                'keyword argument(s)',
+                missing,
+            )
+        else:
+            self.task_id = f'{index}---{id_suffix}'
+        self.index = index
+        self.stub = f'Task: {self.task_id} of Job: {self.job.name}'
+        self.doc_id = None
+        self.get_history()
+
+
+class Step(Trackable):
+    """An individual step item, tracked in Elasticsearch"""
+
+    def __init__(
+        self,
+        job: t.Optional['Job'] = None,
+        task: t.Optional[Task] = None,
+        index: str = '',
+        stepname: str = '',
+    ):
+        super().__init__(job=job, index=index)
+        self.logger = logging.getLogger(f'{MOD}.{self.__class__.__name__}')
+        if task is None:
+            raise MissingArgument('task', 'keyword argument', 'task')
+        if not stepname:
+            raise MissingArgument(
+                'stepname must be provided',
+                'keyword argument(s)',
+                'stepname',
+            )
+        self.task_id = task.task_id
+        self.job = task.job
+        self.index = index
+        self.stepname = stepname
+        self.stub = f'Step: {stepname} of Task: {self.task_id} of Job: {task.job.name}'
+        self.doc_id = None
+        self.get_history()
