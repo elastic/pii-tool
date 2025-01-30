@@ -2,6 +2,7 @@
 
 from os import getenv
 import typing as t
+import time
 import logging
 from elasticsearch8.exceptions import (
     ApiError,
@@ -510,43 +511,79 @@ def put_settings(client: 'Elasticsearch', index: str, settings: dict) -> None:
         raise BadClientResult(f'Invalid settings: {settings}', exc)
 
 
-def get_task_doc(
-    client: 'Elasticsearch', index_name: str, job_id: str, task_id: str
+def get_progress_doc(
+    client: 'Elasticsearch',
+    index_name: str,
+    job_id: str,
+    task_id: str,
+    stepname: str = '',
 ) -> t.Dict:
     """Get a task tracking doc
 
     :param client: A client connection object
     :param index_name: The index name
-    :param job_id: The job_id string for the present redaction run
+    :param job_id: The job name string for the present redaction run
     :param task_id: The task_id string of the task we are searching for
+    :param stepname: [Optional] The step name string of the step we are searching for
 
     :type client: :py:class:`~.elasticsearch.Elasticsearch`
     :type index_name: str
     :type job_id: str
     :type task_id: str
+    :type stepname: str
 
-    :returns: The task tracking document from the progress/status tracking index
+    :returns: The progress tracking document from the progress/status tracking index
+        for the task or step
     """
+    # Base value for stub (task)
+    stub = f'Task: {task_id} of Job: {job_id}'
+    # The proto query
     query = {
         "bool": {
             "must": {"parent_id": {"type": "task", "id": job_id}},
-            "filter": [{"term": {"task": task_id}}],
+            "filter": [],
         }
     }
+    # The base value of the bool filter (task)
+    filters = [
+        {"term": {"task": task_id}},
+        {"term": {"job": job_id}},
+    ]
+    if not stepname:
+        logger.info('Tracking progress for %s', stub)
+        # For Tasks progress docs, we must not match docs with a step field
+        query['bool']['must_not'] = {"exists": {"field": "step"}}
+    else:
+        # Update stub to be for a step
+        stub = f'Step: {stepname} of Task: {task_id} of Job: {job_id}'
+        logger.info('Tracking progress for %s', stub)
+        # Update filters to include step
+        filters.append({"term": {"step": stepname}})
+    # Add the filters to the query
+    query['bool']['filter'] = filters  # type: ignore
     try:
         result = do_search(client, index_pattern=index_name, query=query)
     except NotFoundError as err:
         msg = f'Tracking index {index_name} is missing'
         logger.critical(msg)
         raise MissingIndex(msg, err, index_name)
+    # First get the edge case of multiple hits out of the way
+    if result['hits']['total']['value'] > 1:
+        msg = f'Tracking document for {stub} is not unique. This should never happen.'
+        logger.critical(msg)
+        raise FatalError(msg, ValueError())
+    # After the > 1 test, if we don't have exactly 1 hit, we have zero hits
     if result['hits']['total']['value'] != 1:
-        msg = 'Tracking document for job: {job_id}, task: {task_id} does not exist'
-        raise MissingDocument(msg, Exception(), msg)
+        msg = f'Tracking document for {stub} does not exist'
+        missing = f'A document with step: {stepname}, task: {task_id}, job: {job_id}'
+        logger.debug(msg)
+        raise MissingDocument(msg, Exception(), missing)
+    # There can be only one...
     return result['hits']['hits'][0]
 
 
 def get_tracking_doc(client: 'Elasticsearch', index_name: str, job_id: str) -> t.Dict:
-    """Get the progress/status tracking doc
+    """Get the progress/status tracking doc for the provided job_id
 
     :param client: A client connection object
     :param index_name: The index name
@@ -621,6 +658,10 @@ def mount_index(var: 'DotMap') -> None:
         f'with storage={var.storage}'
     )
     logger.debug(msg)
+    while index_exists(var.client, var.mount_name):
+        logger.warning('Index %s exists. Deleting before remounting', var.mount_name)
+        delete_index(var.client, var.mount_name)
+        time.sleep(3.0)
     try:
         response = dict(
             var.client.searchable_snapshots.mount(
@@ -740,9 +781,9 @@ def restore_index(
         logger.info('Checking if restoration completed...')
         try:
             es_waiter(client, Restore, index_list=[replacement], **WAITKW)
-        except BadClientResult as exc:
-            logger.error('Exception: %s', exc)
-            raise FatalError('Failed to restore index from snapshot', exc)
+        except BadClientResult as bad:
+            logger.error('Exception: %s', bad)
+            raise BadClientResult('Failed to restore index from snapshot', bad)
         msg = f'Restoration of index {index_name} as {replacement} complete'
         logger.info(msg)
     except (ApiError, NotFoundError, TransportError, BadRequestError) as err:
