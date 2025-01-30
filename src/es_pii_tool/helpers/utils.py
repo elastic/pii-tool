@@ -19,7 +19,7 @@ if t.TYPE_CHECKING:
     from voluptuous import Schema
     from elasticsearch8 import Elasticsearch
     from es_pii_tool.job import Job
-    from es_pii_tool.task import Task
+    from es_pii_tool.trackables import Task
 
 logger = logging.getLogger(__name__)
 
@@ -191,6 +191,7 @@ def end_it(obj: t.Union['Job', 'Task'], success: bool) -> None:
 
 def exception_msgmaker(exc: t.Union[e.MissingIndex, e.BadClientResult]) -> str:
     """Most of the messages here are similar enough to warrant a single function"""
+    msg = ''
     upstream = (
         f'The upstream exception type was {type(exc.upstream).__name__}, '
         f'with error message: {exc.upstream.args[0]}'
