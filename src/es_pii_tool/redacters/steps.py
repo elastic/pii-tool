@@ -3,7 +3,7 @@
 import typing as t
 import logging
 from dotmap import DotMap  # type: ignore
-from es_pii_tool.task import Task
+from es_pii_tool.trackables import Task
 from es_pii_tool.helpers import steps as s
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,11 @@ class RedactionSteps:
         for func in prepsteps:
             stepname = f'step{str(self.counter).zfill(2)}_{func.__name__}'
             logger.debug('Attempting %s', stepname)
-            func(self.task, stepname, self.var, data=self.data)
+            try:
+                func(self.task, stepname, self.var, data=self.data)
+            except Exception as exc:
+                logger.error('Failed to execute %s: %s', stepname, exc)
+                raise exc
             self.counter += 1
 
     def first_steps(self):
