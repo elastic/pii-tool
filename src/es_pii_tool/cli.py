@@ -6,7 +6,7 @@ from es_client.helpers import config as cfg
 from es_client.helpers.logging import configure_logging
 from es_pii_tool.commands.from_yaml import file_based
 
-# pylint: disable=W0613,W0622,R0913,R0914
+# pylint: disable=W0613,W0622,R0913,R0914,R0917
 # These pylint items are being disabled because of how Click works.
 
 
