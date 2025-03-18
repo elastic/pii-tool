@@ -1,17 +1,11 @@
 """Each function is a single step in PII redaction"""
 
-from os import getenv
 import typing as t
 import time
 import logging
 from dotmap import DotMap  # type: ignore
 from es_wait import IlmPhase, IlmStep
-from es_pii_tool.defaults import (
-    PAUSE_DEFAULT,
-    PAUSE_ENVVAR,
-    TIMEOUT_DEFAULT,
-    TIMEOUT_ENVVAR,
-)
+from es_pii_tool.defaults import PAUSE_DEFAULT
 from es_pii_tool.exceptions import (
     BadClientResult,
     FatalError,
@@ -27,13 +21,11 @@ from es_pii_tool.helpers.utils import (
     get_alias_actions,
     strip_ilm_name,
     es_waiter,
+    timing,
 )
 
 if t.TYPE_CHECKING:
     from es_pii_tool.trackables import Task
-
-PAUSE_VALUE = float(getenv(PAUSE_ENVVAR, default=PAUSE_DEFAULT))
-TIMEOUT_VALUE = float(getenv(TIMEOUT_ENVVAR, default=TIMEOUT_DEFAULT))
 
 logger = logging.getLogger(__name__)
 
@@ -514,15 +506,25 @@ def confirm_ilm_phase(task: 'Task', stepname, var: DotMap, **kwargs) -> None:
         step.end(completed=True, errors=False, logmsg=f'{stepname} completed')
         return
     # Wait for phase to be "new"
-    waitkw = {'pause': PAUSE_VALUE, 'timeout': TIMEOUT_VALUE}
+    pause, timeout = timing('ilm')
+    logger.debug(f'ENV pause = {pause}, timeout = {timeout}')
     try:
         # Update in es_wait 0.9.2:
         # - If you send phase='new', it will wait for the phase to be 'new' or higher
         # - This is where a user was getting stuck. They were waiting for 'new' but
         # - the phase was already 'frozen', so it was endlessly checking for 'new'.
-        es_waiter(var.client, IlmPhase, name=var.mount_name, phase='new', **waitkw)
+        es_waiter(
+            var.client,
+            IlmPhase,
+            name=var.mount_name,
+            phase='new',
+            pause=pause,
+            timeout=timeout,
+        )
         # Wait for step to be "complete"
-        es_waiter(var.client, IlmStep, name=var.mount_name, **waitkw)
+        es_waiter(
+            var.client, IlmStep, name=var.mount_name, pause=pause, timeout=timeout
+        )
     except BadClientResult as bad:
         _ = f'ILM step confirmation problem -- ERROR: {bad}'
         logger.error(_)
@@ -599,15 +601,28 @@ def confirm_ilm_phase(task: 'Task', stepname, var: DotMap, **kwargs) -> None:
                     logger.error(_)
                     step.add_log(_)
                     failed_step(task, step, bad)
-                logger.debug('Waiting %s seconds before retrying...', PAUSE_VALUE)
-                time.sleep(PAUSE_VALUE)
+                logger.debug('Waiting %s seconds before retrying...', PAUSE_DEFAULT)
+                time.sleep(float(PAUSE_DEFAULT))
                 logger.warning('ILM move failed: %s -- Retrying...', bad.message)
                 continue
+            pause, timeout = timing('ilm')
+            logger.debug(f'ENV pause = {pause}, timeout = {timeout}')
             try:
                 es_waiter(
-                    var.client, IlmPhase, name=var.mount_name, phase=var.phase, **waitkw
+                    var.client,
+                    IlmPhase,
+                    name=var.mount_name,
+                    phase=var.phase,
+                    pause=pause,
+                    timeout=timeout,
                 )
-                es_waiter(var.client, IlmStep, name=var.mount_name, **waitkw)
+                es_waiter(
+                    var.client,
+                    IlmStep,
+                    name=var.mount_name,
+                    pause=pause,
+                    timeout=timeout,
+                )
             except BadClientResult as phase_err:
                 msg = f'Unable to wait for ILM step to complete -- ERROR: {phase_err}'
                 logger.error(msg)

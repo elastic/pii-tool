@@ -10,7 +10,7 @@ from es_pii_tool.exceptions import FatalError
 
 logger = logging.getLogger(__name__)
 
-# pylint: disable=R0903,R0913
+# pylint: disable=R0903,R0913,R0917
 
 
 def get_kind(scenario) -> str:
@@ -51,12 +51,13 @@ class TestBuiltin:
     builtin = ''
 
     @pytest.fixture(scope="class")
-    def tb(self, client, prefix, uniq, skip_no_repo, tracker):
+    def tb(self, client, prefix, uniq, skip_no_repo, repo, tracker):
         """TestBed setup/teardown"""
         skip_no_repo(get_sstier(self.scenario) in ['cold', 'frozen'])
         teebee = TestBed(client, builtin=self.builtin, scenario=self.scenario)
         teebee.settings['prefix'] = prefix
         teebee.settings['uniq'] = uniq
+        teebee.settings['repository'] = repo  # This is to use the ENV var
         teebee.setup()
         yield teebee
         teebee.teardown()

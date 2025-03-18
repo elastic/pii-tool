@@ -29,13 +29,13 @@ keywords = [
     'index'
 ]
 dependencies = [
-    'es_client>=8.17.1',
-    'es_wait>=0.9.4',
+    'es_client>=8.17.4',
+    'es_wait>=0.11.0',
 ]
 
 [project.optional-dependencies]
 test = [
-    'es_testbed==0.8.5',
+    'es_testbed==0.9.0',
     'requests',
     'pytest>=7.2.1',
     'pytest-cov',
@@ -114,7 +114,7 @@ python = ['3.8', '3.9', '3.10', '3.11', '3.12']
 
 [tool.hatch.envs.test]
 dependencies = [
-    'es-testbed==0.8.5',
+    'es-testbed==0.9.0',
     'requests',
     'pytest >=7.2.1',
     'pytest-cov',

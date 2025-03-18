@@ -2,6 +2,7 @@
 connect.yml
 client.yaml
 frozen_ds.yaml
+testconfigs/
 mapping.yaml
 http_ca.crt
 docker_test/.kurl

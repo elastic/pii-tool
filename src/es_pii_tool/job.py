@@ -22,7 +22,7 @@ if t.TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# pylint: disable=R0902,R0904,R0913
+# pylint: disable=R0902,R0904,R0913,R0917
 
 
 class Job:
@@ -177,13 +177,17 @@ class Job:
 
     def add_log(self, value: str) -> None:
         """Append another entry to :py:attr:`logs`"""
-        if self.logs is None:
-            _ = []
-            _.append(f'{now_iso8601()} {value}')
-        else:
-            _ = self.logs
-            _.append(f'{now_iso8601()} {value}')
-        self.logs = _
+        try:
+            if self.logs is None:
+                _ = []
+                _.append(f'{now_iso8601()} {value}')
+            else:
+                _ = self.logs
+                _.append(f'{now_iso8601()} {value}')
+            self.logs = _
+        except Exception as exc:
+            logger.critical(f'Unable to add log entry: {exc}')
+            raise exc
 
     def get_status(self, data: t.Dict) -> t.Dict:
         """Read the status keys from the data
@@ -270,7 +274,11 @@ class Job:
             msg = 'DRY-RUN: No changes will be made'
             logger.info(msg)
             self.add_log(msg)
-        self.indices = list(get_index(self.client, self.config['pattern']))
+        try:
+            self.indices = list(get_index(self.client, self.config['pattern']))
+        except (MissingIndex, Exception) as exc:
+            logger.critical(f'Fatal Error getting indices: {exc}')
+            raise exc
         logger.debug('Indices from provided pattern: %s', self.indices)
         self.total = len(self.indices)
         logger.debug("Total number of indices to scrub: %s", self.total)
