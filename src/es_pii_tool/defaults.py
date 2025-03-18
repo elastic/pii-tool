@@ -2,6 +2,7 @@
 
 import typing as t
 from voluptuous import All, Any, Boolean, Coerce, Optional, Range, Required, Schema
+from es_wait.defaults import EXISTS, HEALTH, ILM, RELOCATE, RESTORE, SNAPSHOT, TASK
 
 TRACKING_INDEX = 'redactions-tracker'
 
@@ -30,6 +31,79 @@ PAUSE_DEFAULT: str = '9.0'
 PAUSE_ENVVAR: str = 'PII_TOOL_PAUSE'
 TIMEOUT_DEFAULT: str = '7200.0'
 TIMEOUT_ENVVAR: str = 'PII_TOOL_TIMEOUT'
+
+TIMINGS: dict = {
+    'exists': {
+        'pause': {
+            'testing': 0.3,
+            'default': EXISTS.get('pause'),
+        },
+        'timeout': {
+            'testing': 10.0,
+            'default': EXISTS.get('timeout'),
+        },
+    },
+    'health': {
+        'pause': {
+            'testing': 0.3,
+            'default': HEALTH.get('pause'),
+        },
+        'timeout': {
+            'testing': 10.0,
+            'default': HEALTH.get('timeout'),
+        },
+    },
+    'ilm': {
+        'pause': {
+            'testing': 1.0,
+            'default': ILM.get('pause'),
+        },
+        'timeout': {
+            'testing': 30.0,
+            'default': ILM.get('timeout'),
+        },
+    },
+    'relocate': {
+        'pause': {
+            'testing': 0.5,
+            'default': RELOCATE.get('pause'),
+        },
+        'timeout': {
+            'testing': 30.0,
+            'default': RELOCATE.get('timeout'),
+        },
+    },
+    'restore': {
+        'pause': {
+            'testing': 0.5,
+            'default': RESTORE.get('pause'),
+        },
+        'timeout': {
+            'testing': 30.0,
+            'default': RESTORE.get('timeout'),
+        },
+    },
+    'snapshot': {
+        'pause': {
+            'testing': 0.5,
+            'default': SNAPSHOT.get('pause'),
+        },
+        'timeout': {
+            'testing': 30.0,
+            'default': SNAPSHOT.get('timeout'),
+        },
+    },
+    'task': {
+        'pause': {
+            'testing': 0.3,
+            'default': TASK.get('pause'),
+        },
+        'timeout': {
+            'testing': 30.0,
+            'default': TASK.get('timeout'),
+        },
+    },
+}
 
 
 def forcemerge_schema() -> t.Dict[Optional, t.Union[All, Any, Coerce, Range, Required]]:
