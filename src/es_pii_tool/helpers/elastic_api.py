@@ -1,6 +1,5 @@
 """Functions making Elasticsearch API calls"""
 
-from os import getenv
 import typing as t
 import time
 import logging
@@ -10,13 +9,7 @@ from elasticsearch8.exceptions import (
     TransportError,
     BadRequestError,
 )
-from es_wait import Index, Restore, Snapshot, Task
-from es_pii_tool.defaults import (
-    PAUSE_DEFAULT,
-    PAUSE_ENVVAR,
-    TIMEOUT_DEFAULT,
-    TIMEOUT_ENVVAR,
-)
+from es_wait import Health, Restore, Snapshot, Task
 from es_pii_tool.exceptions import (
     BadClientResult,
     FatalError,
@@ -25,20 +18,17 @@ from es_pii_tool.exceptions import (
     MissingIndex,
     ValueMismatch,
 )
-from es_pii_tool.helpers.utils import build_script, check_fields, es_waiter
+from es_pii_tool.helpers.utils import build_script, check_fields, es_waiter, timing
 
 if t.TYPE_CHECKING:
     from dotmap import DotMap  # type: ignore
     from elasticsearch8 import Elasticsearch
     from elastic_transport import HeadApiResponse
 
-PAUSE_VALUE = float(getenv(PAUSE_ENVVAR, default=PAUSE_DEFAULT))
-TIMEOUT_VALUE = float(getenv(TIMEOUT_ENVVAR, default=TIMEOUT_DEFAULT))
-WAITKW = {'pause': PAUSE_VALUE, 'timeout': TIMEOUT_VALUE}
 
 logger = logging.getLogger(__name__)
 
-# pylint: disable=R0913,W0707
+# pylint: disable=R0913,R0917,W0707
 
 
 def assign_alias(client: 'Elasticsearch', index_name: str, alias_name: str) -> None:
@@ -227,16 +217,17 @@ def forcemerge_index(
         logger.error("Index: '%s' not found. Error: %s", index, err)
         raise MissingIndex(f'Index "{index}" not found', err, index)  # type: ignore
     logger.info('Waiting for forcemerge to complete...')
-    # task_check = Task(
-    #     client,
-    #     action='forcemerge',
-    #     task_id=response['task'],
-    #     pause=PAUSE_VALUE,
-    #     timeout=TIMEOUT_VALUE,
-    # )
+    pause, timeout = timing('task')
+    logger.debug(f'ENV pause = {pause}, timeout = {timeout}')
     try:
-        # task_check.wait()
-        es_waiter(client, Task, action='forcemerge', task_id=response['task'], **WAITKW)
+        es_waiter(
+            client,
+            Task,
+            action='forcemerge',
+            task_id=response['task'],
+            pause=pause,
+            timeout=timeout,
+        )
     except BadClientResult as exc:
         logger.error('Exception: %s', exc)
         raise FatalError('Failed to forcemerge', exc)
@@ -330,6 +321,9 @@ def get_index(client: 'Elasticsearch', index: str) -> t.Dict:
     except (ApiError, NotFoundError, TransportError, BadRequestError) as err:
         logger.error("Index: '%s' not found. Error: %s", index, err)
         raise MissingIndex(f'Index "{index}" not found', err, index)
+    except Exception as exc:
+        logger.error(f'Unanticipated Exception: {exc}')
+        raise exc
     return response
 
 
@@ -677,14 +671,16 @@ def mount_index(var: 'DotMap') -> None:
         logger.debug(response)
         raise BadClientResult('Error when mount index attempted', err)
     logger.info('Ensuring searchable snapshot mount is in "green" health state...')
+    pause, timeout = timing('health')
+    logger.debug(f'ENV pause = {pause}, timeout = {timeout}')
     try:
         es_waiter(
             var.client,
-            Index,
-            action='mount',
-            index=var.mount_name,
-            pause=PAUSE_VALUE,
-            timeout=30.0,
+            Health,
+            check_type='status',
+            indices=var.mount_name,
+            pause=pause,
+            timeout=timeout,
         )
     except BadClientResult as exc:
         logger.error('Exception: %s', exc)
@@ -779,8 +775,12 @@ def restore_index(
         )
         logger.debug('Response = %s', response)
         logger.info('Checking if restoration completed...')
+        pause, timeout = timing('restore')
+        logger.debug(f'ENV pause = {pause}, timeout = {timeout}')
         try:
-            es_waiter(client, Restore, index_list=[replacement], **WAITKW)
+            es_waiter(
+                client, Restore, index_list=[replacement], pause=pause, timeout=timeout
+            )
         except BadClientResult as bad:
             logger.error('Exception: %s', bad)
             raise BadClientResult('Failed to restore index from snapshot', bad)
@@ -837,11 +837,16 @@ def redact_from_index(client: 'Elasticsearch', index_name: str, config: t.Dict) 
         raise FatalError('update_by_query API call failed', err)
     logger.debug('Checking update by query status...')
     logger.debug('response = %s', response)
-    # task_check = Task(client, action='update_by_query', task_id=response['task'])
+    pause, timeout = timing('task')
+    logger.debug(f'ENV pause = {pause}, timeout = {timeout}')
     try:
-        # task_check.wait()
         es_waiter(
-            client, Task, action='update_by_query', task_id=response['task'], **WAITKW
+            client,
+            Task,
+            action='update_by_query',
+            task_id=response['task'],
+            pause=pause,
+            timeout=timeout,
         )
     except BadClientResult as exc:
         logger.error('Exception: %s', exc)
@@ -903,13 +908,17 @@ def take_snapshot(
         logger.critical(msg)
         raise BadClientResult(msg, err)
     logger.info('Checking on status of snapshot...')
-    # snapshot_check = Snapshot(
-    #     client, snapshot=snap_name, repository=repo_name, **WAITKW
-    # )
-
+    pause, timeout = timing('snapshot')
+    logger.debug(f'ENV pause = {pause}, timeout = {timeout}')
     try:
-        # snapshot_check.wait()
-        es_waiter(client, Snapshot, snapshot=snap_name, repository=repo_name, **WAITKW)
+        es_waiter(
+            client,
+            Snapshot,
+            snapshot=snap_name,
+            repository=repo_name,
+            pause=pause,
+            timeout=timeout,
+        )
     except BadClientResult as exc:
         logger.error('Exception: %s', exc)
         raise FatalError('Failed to complete index snapshot', exc)
