@@ -13,6 +13,8 @@ from es_pii_tool.helpers.utils import end_it, get_redactions
 if t.TYPE_CHECKING:
     from elasticsearch8 import Elasticsearch
 
+# pylint: disable=R0917
+
 logger = logging.getLogger(__name__)
 
 
@@ -32,7 +34,11 @@ class PiiTool:
         logger.debug('Redactions file: %s', redaction_file)
         self.counter = 0
         self.client = client
-        self.redactions = get_redactions(redaction_file, redaction_dict)
+        try:
+            self.redactions = get_redactions(redaction_file, redaction_dict)
+        except Exception as err:
+            logger.critical('Unable to load redactions: %s', err)
+            raise err
         self.tracking_index = tracking_index
         self.dry_run = dry_run
 
