@@ -2,17 +2,23 @@
 
 import typing as t
 import logging
+from os import environ
 import json
 from inspect import stack
 from datetime import datetime, timezone
 import re
-from elasticsearch8.exceptions import NotFoundError
 from es_client.exceptions import ConfigurationError as esc_ConfigError
 from es_client.helpers.schemacheck import SchemaCheck
 from es_client.helpers.utils import get_yaml
-from es_wait.exceptions import IlmWaitError
+from es_wait.exceptions import EsWaitFatal, EsWaitTimeout, IlmWaitError
 import es_pii_tool.exceptions as e
-from es_pii_tool.defaults import PHASES, redaction_schema
+from es_pii_tool.defaults import (
+    PHASES,
+    PAUSE_DEFAULT,
+    TIMEOUT_DEFAULT,
+    TIMINGS,
+    redaction_schema,
+)
 
 if t.TYPE_CHECKING:
     from dotmap import DotMap  # type: ignore
@@ -316,9 +322,15 @@ def get_redactions(file: str = '', data: t.Union[t.Dict, None] = None) -> 'Schem
         config = data
     else:
         raise e.FatalError('No configuration file or dictionary provided.', Exception())
-    return SchemaCheck(
-        config, redaction_schema(), 'Redaction Configuration', 'redactions'
-    ).result()
+    logger.debug('Performing redaction schema check...')
+    try:
+        return SchemaCheck(
+            config, redaction_schema(), 'Redaction Configuration', 'redactions'
+        ).result()
+    except Exception as exc:
+        msg = f'Redaction configuration schema check failed: {exc} -- Exiting.'
+        logger.critical(msg)
+        raise exc
 
 
 def now_iso8601() -> str:
@@ -469,11 +481,33 @@ def es_waiter(client: 'Elasticsearch', cls, **kwargs) -> None:
         waiter = cls(client, **kwargs)
         waiter.wait()
     except (
-        KeyError,
-        ValueError,
-        TimeoutError,
         IlmWaitError,
-        NotFoundError,
+        EsWaitFatal,
+        EsWaitTimeout,
     ) as wait_err:
         msg = f'{cls.__name__}: wait for completion failed: {kwargs}'
+        logger.error(f'{msg}. Exception(s): - {wait_err}')
         raise e.BadClientResult(msg, wait_err)
+
+
+def timing(kind: str) -> t.Tuple:
+    """
+    Return a tuple of two floats: the pause value and the timeout value
+
+    :param kind: The kind of timing to do
+
+    :type kind: str
+
+    :returns: A tuple of two floats
+    :rtype: tuple
+    """
+    is_test = environ.get('PII_TOOL_TESTING', 'False') == 'True'
+    pause = 1.0 if is_test else PAUSE_DEFAULT  # Default values to be overridden
+    timeout = 30.0 if is_test else TIMEOUT_DEFAULT  # Default values to be overridden
+    testkey = 'testing' if is_test else 'default'
+    pause = TIMINGS[kind]['pause'][testkey]
+    timeout = TIMINGS[kind]['timeout'][testkey]
+    # logger.debug(
+    #     f'kind = {kind}, TESTING = {testing}, PAUSE = {pause}, TIMEOUT = {timeout}'
+    # )
+    return pause, timeout
