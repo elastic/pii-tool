@@ -35,7 +35,7 @@ dependencies = [
 
 [project.optional-dependencies]
 test = [
-    'es_testbed==0.9.0',
+    'es_testbed==0.11.3',
     'requests',
     'pytest>=7.2.1',
     'pytest-cov',
@@ -114,7 +114,7 @@ python = ['3.8', '3.9', '3.10', '3.11', '3.12']
 
 [tool.hatch.envs.test]
 dependencies = [
-    'es-testbed==0.9.0',
+    'es-testbed==0.11.3',
     'requests',
     'pytest >=7.2.1',
     'pytest-cov',
