@@ -39,7 +39,7 @@ test = [
     'requests',
     'pytest>=7.2.1',
     'pytest-cov',
-    'python-dotenv==1.0.1',
+    'python-dotenv==1.2.1',
 ]
 doc = ['sphinx', 'sphinx_rtd_theme']
 
@@ -118,7 +118,7 @@ dependencies = [
     'requests',
     'pytest >=7.2.1',
     'pytest-cov',
-    'python-dotenv==1.0.1',
+    'python-dotenv==1.2.1',
 ]
 
 [tool.hatch.envs.test.scripts]
